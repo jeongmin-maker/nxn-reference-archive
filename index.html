@@ -896,8 +896,7 @@ function render() {
     const el = document.createElement("img");
     el.src = thumbUrl(img.id);
     el.alt = img.name;
-    el.loading = "lazy";
-    el.decoding = "async";
+    el.loading = "eager";
     card.appendChild(el);
 
     const favBtn = document.createElement("button");
