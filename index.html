@@ -431,6 +431,33 @@
   .img-card.selected { outline: 2px solid rgba(255,255,255,0.85); outline-offset: -2px; }
   body.tag-mode .img-card { cursor: pointer; }
   body.tag-mode .img-card .tag-btn { display: none !important; }
+
+  #nameModal {
+    display: none; position: fixed;
+    inset: 0; z-index: 1002;
+    background: rgba(0,0,0,0.85);
+    align-items: center; justify-content: center;
+  }
+  #nameModal.open { display: flex; }
+  #nameModalBox {
+    background: #1e1e1e; border: 1px solid #333;
+    border-radius: 8px; padding: 24px;
+    width: 300px; max-width: 90vw; text-align: center;
+  }
+  #nameModalBox p { font-size: 12px; color: #888; margin-bottom: 16px; line-height: 1.6; }
+  #nameModalInput {
+    width: 100%; background: #2a2a2a; border: 1px solid #444;
+    color: #e0e0e0; padding: 8px 12px;
+    border-radius: 4px; font-size: 13px; outline: none;
+    margin-bottom: 12px;
+  }
+  #nameModalInput:focus { border-color: #666; }
+  #nameModalSubmit {
+    width: 100%; background: #fff; color: #111;
+    border: none; padding: 8px; border-radius: 4px;
+    cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  #nameModalSubmit:hover { background: #e8e8e8; }
 </style>
 </head>
 <body>
@@ -454,6 +481,8 @@
   <button class="tag-mode-btn" id="tagModeBtn">⌗ 태깅</button>
 
   <button id="shuffleBtn" class="sub-pill" title="순서 다시 섞기">⇄ Shuffle</button>
+
+  <button id="userBtn" class="sub-pill" title="사용자 변경"><span id="userLabel">—</span></button>
 
   <div class="search-wrap">
     <input type="search" id="search" placeholder="파일명 검색…">
@@ -511,6 +540,14 @@
   <button class="sel-action danger" id="selClearBtn">✕ 선택 해제</button>
 </div>
 
+<div id="nameModal">
+  <div id="nameModalBox">
+    <p>즐겨찾기는 사용자별로 저장됩니다.<br>이름 또는 닉네임을 입력해주세요.</p>
+    <input id="nameModalInput" type="text" placeholder="이름 / 닉네임" maxlength="30">
+    <button id="nameModalSubmit">확인</button>
+  </div>
+</div>
+
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://qjqdzgwyrodsfckqnwkg.supabase.co';
@@ -549,7 +586,8 @@ async function loadTags() {
 }
 
 async function loadFavs() {
-  const rows = await sbReq('favorites?select=image_id');
+  if (!currentUser) return new Set();
+  const rows = await sbReq(`favorites?select=image_id&user_id=eq.${encodeURIComponent(currentUser)}`);
   return new Set((rows || []).map(r => r.image_id));
 }
 
@@ -570,11 +608,11 @@ async function saveTags(id, tags) {
   }
 }
 
-async function toggleFavSb(id, add) {
+async function toggleFavSb(id, add, uid) {
   if (add) {
-    await sbReq('favorites', { method: 'POST', prefer: 'resolution=merge-duplicates', body: { image_id: id } });
+    await sbReq('favorites', { method: 'POST', prefer: 'resolution=merge-duplicates', body: { user_id: uid, image_id: id } });
   } else {
-    await sbReq(`favorites?image_id=eq.${id}`, { method: 'DELETE' });
+    await sbReq(`favorites?user_id=eq.${encodeURIComponent(uid)}&image_id=eq.${id}`, { method: 'DELETE' });
   }
 }
 
@@ -638,6 +676,48 @@ const searchEl  = document.getElementById("search");
 const favFilter = document.getElementById("favFilter");
 const activeTagChip  = document.getElementById("activeTagChip");
 const activeTagLabel = document.getElementById("activeTagLabel");
+
+// ── User identity ─────────────────────────────────────────────────────────────
+let currentUser = localStorage.getItem('nxn_user') || null;
+if (currentUser) document.getElementById('userLabel').textContent = currentUser;
+
+let nameResolve = null;
+
+function openNameModal() {
+  document.getElementById('nameModalInput').value = '';
+  document.getElementById('nameModal').classList.add('open');
+  document.getElementById('nameModalInput').focus();
+  return new Promise(resolve => { nameResolve = resolve; });
+}
+
+function submitName() {
+  const val = document.getElementById('nameModalInput').value.trim();
+  if (!val) return;
+  currentUser = val;
+  localStorage.setItem('nxn_user', val);
+  document.getElementById('userLabel').textContent = val;
+  document.getElementById('nameModal').classList.remove('open');
+  if (nameResolve) { nameResolve(val); nameResolve = null; }
+}
+
+document.getElementById('nameModalSubmit').onclick = submitName;
+document.getElementById('nameModalInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') submitName();
+});
+
+document.getElementById('userBtn').onclick = () => {
+  document.getElementById('nameModalInput').value = currentUser || '';
+  document.getElementById('nameModal').classList.add('open');
+  document.getElementById('nameModalInput').focus();
+  nameResolve = () => {
+    loadFavs().then(f => { FAVS = f; render(); }).catch(console.error);
+  };
+};
+
+async function ensureUser() {
+  if (currentUser) return currentUser;
+  return openNameModal();
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function shuffle(arr) {
@@ -905,10 +985,12 @@ function render() {
     favBtn.title = "즐겨찾기";
     favBtn.onclick = async e => {
       e.stopPropagation();
+      const uid = await ensureUser();
+      if (!uid) return;
       const add = !FAVS.has(img.id);
       if (add) FAVS.add(img.id); else FAVS.delete(img.id);
       favBtn.classList.toggle("on", FAVS.has(img.id));
-      toggleFavSb(img.id, add).catch(console.error);
+      toggleFavSb(img.id, add, uid).catch(console.error);
     };
     card.appendChild(favBtn);
 
