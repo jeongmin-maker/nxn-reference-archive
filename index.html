@@ -513,16 +513,14 @@
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/nxn.ai/s/AKfycbxy0nSC1G79YEV1rZH1Yt7EXIkYaqm0e9oyodJZGF2T6BgrshDE1FxLgNCainh0zAwllQ/exec';
-const SUPABASE_URL    = 'https://qjqdzgwyrodsfckqnwkg.supabase.co';
-const SUPABASE_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqcWR6Z3d5cm9kc2Zja3Fud2tnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTEwNzAsImV4cCI6MjA5NTIyNzA3MH0.UR_t6Ojoten2k-_-1OmfR4DEwynh_jx4ob6fIKyP6lY';
+const SUPABASE_URL = 'https://qjqdzgwyrodsfckqnwkg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqcWR6Z3d5cm9kc2Zja3Fud2tnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTEwNzAsImV4cCI6MjA5NTIyNzA3MH0.UR_t6Ojoten2k-_-1OmfR4DEwynh_jx4ob6fIKyP6lY';
 
-// ── Drive image fetch (via Apps Script) ───────────────────────────────────────
+// ── Image list (served from same origin — no CORS) ────────────────────────────
 async function fetchAllImages() {
-  const res = await fetch(APPS_SCRIPT_URL);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data;
+  const res = await fetch('images.json');
+  if (!res.ok) throw new Error('images.json 로드 실패');
+  return res.json();
 }
 
 function thumbUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w400`; }
