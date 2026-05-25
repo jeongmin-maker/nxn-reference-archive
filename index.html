@@ -1,0 +1,1204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARCHIVE</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #111;
+    --surface: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #e0e0e0;
+    --text-muted: #666;
+    --accent: #fff;
+    --tag-bg: #222;
+    --tag-active: #fff;
+    --tag-active-text: #111;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+
+  h1 {
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  .cat-tabs { display: flex; gap: 4px; flex-shrink: 0; }
+
+  .cat-tab {
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+  .cat-tab:hover { border-color: #555; color: var(--text); }
+  .cat-tab.active { background: var(--tag-active); color: var(--tag-active-text); border-color: var(--tag-active); }
+
+  .sub-pill {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .sub-pill:hover { border-color: #555; color: var(--text); }
+  .sub-pill.active { background: var(--tag-bg); color: var(--text); border-color: #444; }
+
+  .search-wrap { margin-left: auto; }
+
+  #search {
+    background: var(--tag-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    width: 200px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #search:focus { border-color: #555; }
+  #search::placeholder { color: var(--text-muted); }
+
+  #count { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+
+  main { padding: 16px; }
+
+  #grid { columns: 5 180px; column-gap: 8px; }
+
+  .img-card {
+    break-inside: avoid;
+    margin-bottom: 8px;
+    cursor: zoom-in;
+    position: relative;
+    overflow: hidden;
+    border-radius: 3px;
+    background: var(--surface);
+  }
+  .img-card img { display: block; width: 100%; height: auto; transition: opacity 0.2s; }
+  .img-card:hover img { opacity: 0.85; }
+  .img-card.hidden { display: none; }
+
+  #empty {
+    display: none;
+    padding: 60px 20px;
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  #lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: rgba(0,0,0,0.92);
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+  }
+  #lightbox.open { display: flex; }
+
+  #lb-img {
+    max-width: 92vw;
+    max-height: 92vh;
+    object-fit: contain;
+    border-radius: 2px;
+    user-select: none;
+  }
+
+  #lb-close {
+    position: fixed;
+    top: 16px; right: 20px;
+    color: #888; font-size: 28px;
+    cursor: pointer; line-height: 1; z-index: 1000;
+  }
+  #lb-close:hover { color: #fff; }
+
+  #lb-nav-prev, #lb-nav-next {
+    position: fixed;
+    top: 50%; transform: translateY(-50%);
+    background: rgba(255,255,255,0.08);
+    border: none; color: #ccc;
+    font-size: 24px; width: 44px; height: 64px;
+    cursor: pointer; border-radius: 4px; z-index: 1000;
+    transition: background 0.15s;
+  }
+  #lb-nav-prev { left: 12px; }
+  #lb-nav-next { right: 12px; }
+  #lb-nav-prev:hover, #lb-nav-next:hover { background: rgba(255,255,255,0.15); color: #fff; }
+
+  #lb-info {
+    position: fixed;
+    bottom: 16px; left: 50%; transform: translateX(-50%);
+    color: #555; font-size: 11px; text-align: center;
+  }
+
+  .img-card .fav-btn {
+    position: absolute;
+    top: 6px; right: 6px;
+    background: rgba(0,0,0,0.55);
+    border: none; color: rgba(255,255,255,0.35);
+    font-size: 14px; width: 26px; height: 26px;
+    border-radius: 50%; cursor: pointer;
+    display: none; align-items: center; justify-content: center;
+    transition: color 0.15s; z-index: 2;
+  }
+  .img-card:hover .fav-btn { display: flex; }
+  .img-card .fav-btn.on { display: flex; color: #ff5555; }
+  .img-card .fav-btn:hover { color: #ff5555; }
+
+  .img-card .tag-btn {
+    position: absolute;
+    top: 6px; left: 6px;
+    background: rgba(0,0,0,0.55);
+    border: none; color: rgba(255,255,255,0.4);
+    font-size: 10px; padding: 3px 6px;
+    border-radius: 3px; cursor: pointer;
+    display: none; align-items: center; z-index: 2;
+    transition: color 0.15s;
+  }
+  .img-card:hover .tag-btn { display: flex; }
+  .img-card .tag-btn:hover { color: #fff; }
+
+  .img-card .card-tags {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    padding: 4px 6px;
+    display: flex; flex-wrap: wrap; gap: 3px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.55));
+  }
+  .img-card .card-tags .ctag {
+    background: rgba(255,255,255,0.18);
+    color: #eee; font-size: 9px;
+    padding: 2px 6px; border-radius: 2px;
+    cursor: pointer; transition: background 0.12s;
+  }
+  .img-card .card-tags .ctag:hover { background: rgba(255,255,255,0.38); }
+  .img-card .card-tags .ctag.active-tag { background: rgba(255,255,255,0.7); color: #111; }
+
+  #activeTagChip {
+    display: none; align-items: center; gap: 5px;
+    background: #2a2a2a; border: 1px solid #555;
+    color: #ddd; font-size: 11px;
+    padding: 3px 8px 3px 10px;
+    border-radius: 20px; white-space: nowrap;
+  }
+  #activeTagChip.visible { display: flex; }
+  #activeTagChip button {
+    background: none; border: none;
+    color: #888; cursor: pointer;
+    font-size: 13px; line-height: 1; padding: 0;
+  }
+  #activeTagChip button:hover { color: #fff; }
+
+  #tagModal {
+    display: none; position: fixed;
+    inset: 0; z-index: 1001;
+    background: rgba(0,0,0,0.72);
+    align-items: center; justify-content: center;
+  }
+  #tagModal.open { display: flex; }
+  #tagModalBox {
+    background: #1e1e1e; border: 1px solid #333;
+    border-radius: 8px; padding: 20px;
+    width: 340px; max-width: 90vw;
+  }
+  #tagModalHeader {
+    display: flex; justify-content: space-between;
+    align-items: flex-start; margin-bottom: 14px;
+  }
+  #tagModalTitle {
+    font-size: 11px; color: #666;
+    word-break: break-all; padding-right: 12px;
+  }
+  #tagModalClose {
+    background: none; border: none;
+    color: #555; font-size: 18px;
+    cursor: pointer; line-height: 1; flex-shrink: 0;
+  }
+  #tagModalClose:hover { color: #fff; }
+  #tagModalPills {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    min-height: 28px; margin-bottom: 14px;
+  }
+  .modal-tag {
+    display: flex; align-items: center; gap: 4px;
+    background: #2e2e2e; color: #ddd;
+    font-size: 12px; padding: 3px 8px; border-radius: 4px;
+  }
+  .modal-tag .rm {
+    background: none; border: none;
+    color: #666; cursor: pointer;
+    font-size: 13px; line-height: 1; padding: 0;
+  }
+  .modal-tag .rm:hover { color: #ff5555; }
+  #tagModalRow { display: flex; gap: 8px; }
+  #tagModalInput {
+    flex: 1;
+    background: #2a2a2a; border: 1px solid #444;
+    color: #e0e0e0; padding: 6px 10px;
+    border-radius: 4px; font-size: 12px; outline: none;
+  }
+  #tagModalInput:focus { border-color: #666; }
+  #tagModalAdd {
+    background: #2e2e2e; border: 1px solid #444;
+    color: #ccc; padding: 6px 12px;
+    border-radius: 4px; cursor: pointer; font-size: 12px;
+  }
+  #tagModalAdd:hover { background: #3a3a3a; }
+
+  .fav-filter {
+    padding: 5px 12px; border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer; font-size: 12px; transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .fav-filter:hover { border-color: #ff5555; color: #ff5555; }
+  .fav-filter.active { background: rgba(255,85,85,0.12); border-color: #ff5555; color: #ff5555; }
+
+  .tag-mode-btn {
+    padding: 5px 12px; border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer; font-size: 12px; transition: all 0.15s; white-space: nowrap;
+  }
+  .tag-mode-btn:hover { border-color: #888; color: var(--text); }
+  .tag-mode-btn.active { background: #fff; color: #111; border-color: #fff; }
+
+  #tagSearchRow {
+    display: none; width: 100%;
+    border-top: 1px solid var(--border);
+    padding: 10px 0 2px;
+    flex-direction: column; gap: 8px;
+  }
+  #tagSearchRow.open { display: flex; }
+  .ts-cat-label {
+    font-size: 10px; color: #444;
+    letter-spacing: 0.06em; text-transform: uppercase; margin-top: 4px;
+  }
+  .ts-group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .ts-group-label {
+    font-size: 10px; color: var(--text-muted);
+    letter-spacing: 0.06em; text-transform: uppercase;
+    white-space: nowrap; min-width: 80px; flex-shrink: 0;
+  }
+  .ts-chip {
+    padding: 3px 10px; border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer; font-size: 11px; transition: all 0.12s;
+  }
+  .ts-chip:hover { border-color: #555; color: var(--text); }
+  .ts-chip.active { background: var(--tag-active); color: var(--tag-active-text); border-color: var(--tag-active); }
+
+  .sel-mode-btn {
+    padding: 5px 12px; border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent; color: var(--text-muted);
+    cursor: pointer; font-size: 12px; transition: all 0.15s; white-space: nowrap;
+  }
+  .sel-mode-btn:hover { border-color: #888; color: var(--text); }
+  .sel-mode-btn.active { background: #fff; color: #111; border-color: #fff; }
+
+  body.select-mode .img-card { cursor: pointer; }
+  body.select-mode .img-card .tag-btn,
+  body.select-mode .img-card .fav-btn { display: none !important; }
+
+  .img-card .sel-check {
+    position: absolute; top: 6px; left: 6px;
+    width: 20px; height: 20px;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 4px;
+    background: rgba(0,0,0,0.45);
+    display: none; align-items: center; justify-content: center;
+    z-index: 3; pointer-events: none;
+  }
+  body.select-mode .img-card .sel-check { display: flex; }
+  .img-card.sel-on .sel-check { background: #fff; border-color: #fff; }
+  .img-card.sel-on .sel-check::after { content: "✓"; color: #111; font-size: 12px; line-height: 1; }
+  .img-card.sel-on { outline: 2px solid rgba(255,255,255,0.8); outline-offset: -2px; }
+
+  #selBar {
+    display: none;
+    position: fixed;
+    bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1e1e1e; border: 1px solid #333;
+    border-radius: 12px; padding: 10px 16px;
+    gap: 8px; align-items: center;
+    z-index: 500;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.6);
+    white-space: nowrap;
+  }
+  #selBar.visible { display: flex; }
+  #selCount { font-size: 12px; color: #888; padding-right: 10px; border-right: 1px solid #333; margin-right: 4px; }
+  .sel-action {
+    background: none; border: none;
+    color: #ccc; cursor: pointer;
+    font-size: 12px; padding: 5px 10px;
+    border-radius: 6px; transition: background 0.12s;
+  }
+  .sel-action:hover { background: #2a2a2a; color: #fff; }
+  .sel-action.primary { background: #2a2a2a; color: #fff; }
+  .sel-action.danger { color: #ff5555; }
+  .sel-action.danger:hover { background: rgba(255,85,85,0.1); }
+
+  #lb-palette {
+    display: flex; gap: 8px;
+    margin-top: 12px; justify-content: center; min-height: 28px;
+  }
+  .lb-swatch {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.12);
+    cursor: default; transition: transform 0.12s, border-color 0.12s;
+  }
+  .lb-swatch:hover { transform: scale(1.25); border-color: rgba(255,255,255,0.4); }
+
+  body.tag-mode main { display: flex; align-items: flex-start; padding: 0; }
+  body.tag-mode #grid { flex: 1; min-width: 0; padding: 16px; }
+  body.tag-mode #empty { display: none !important; }
+
+  #tagPanel {
+    width: 280px; flex-shrink: 0; display: none;
+    flex-direction: column;
+    position: sticky; top: 0;
+    height: 100vh; overflow-y: auto;
+    background: #141414; border-left: 1px solid #222;
+  }
+  body.tag-mode #tagPanel { display: flex; }
+
+  #tagPanelTop {
+    padding: 16px; border-bottom: 1px solid #222;
+    position: sticky; top: 0; background: #141414; z-index: 1;
+  }
+  #tagPanelFilename { font-size: 11px; color: #888; word-break: break-all; margin-bottom: 4px; min-height: 14px; }
+  #tagProgressEl    { font-size: 11px; color: #3a3a3a; }
+
+  #tagPanelHint { color: #3a3a3a; font-size: 12px; text-align: center; padding: 48px 16px; }
+
+  #tagPanelBody { padding: 14px 16px; display: none; }
+  #tagPanelBody.visible { display: block; }
+
+  .tag-group { margin-bottom: 18px; }
+  .tag-group-label {
+    font-size: 10px; color: #555; letter-spacing: 0.07em;
+    text-transform: uppercase; margin-bottom: 7px;
+  }
+  .tag-btns { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag-toggle {
+    padding: 4px 9px; border-radius: 4px;
+    border: 1px solid #2a2a2a; background: transparent;
+    color: #666; cursor: pointer; font-size: 11px; transition: all 0.12s;
+  }
+  .tag-toggle:hover { border-color: #666; color: #ccc; }
+  .tag-toggle.on { background: #e8e8e8; color: #111; border-color: #e8e8e8; font-weight: 500; }
+
+  .img-card.selected { outline: 2px solid rgba(255,255,255,0.85); outline-offset: -2px; }
+  body.tag-mode .img-card { cursor: pointer; }
+  body.tag-mode .img-card .tag-btn { display: none !important; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ARCHIVE</h1>
+
+  <div class="cat-tabs" id="catTabs">
+    <button class="cat-tab active" data-cat="all">All</button>
+    <button class="cat-tab" data-cat="Fashion">Fashion</button>
+    <button class="cat-tab" data-cat="Model">Model</button>
+    <button class="cat-tab" data-cat="Still Life">Still Life</button>
+  </div>
+
+  <button class="fav-filter" id="favFilter">♥ 즐겨찾기</button>
+
+  <div id="activeTagChip"># <span id="activeTagLabel"></span><button id="clearTagBtn">✕</button></div>
+
+  <span id="count"></span>
+
+  <button class="tag-mode-btn" id="tagModeBtn">⌗ 태깅</button>
+
+  <button id="shuffleBtn" class="sub-pill" title="순서 다시 섞기">⇄ Shuffle</button>
+
+  <div class="search-wrap">
+    <input type="search" id="search" placeholder="파일명 검색…">
+  </div>
+
+  <button id="tagSearchBtn" class="sub-pill" title="태그로 필터">⊞ Tags</button>
+
+  <button class="sel-mode-btn" id="selModeBtn">☐ Select</button>
+
+  <div id="tagSearchRow"></div>
+</header>
+
+<main>
+  <div id="grid"></div>
+  <div id="empty">이미지가 없습니다.</div>
+
+  <div id="tagPanel">
+    <div id="tagPanelTop">
+      <div id="tagPanelFilename"></div>
+      <div id="tagProgressEl"></div>
+    </div>
+    <div id="tagPanelHint">← 이미지를 클릭하세요</div>
+    <div id="tagPanelBody"></div>
+  </div>
+</main>
+
+<div id="tagModal">
+  <div id="tagModalBox">
+    <div id="tagModalHeader">
+      <div id="tagModalTitle"></div>
+      <button id="tagModalClose">✕</button>
+    </div>
+    <div id="tagModalPills"></div>
+    <div id="tagModalRow">
+      <input id="tagModalInput" type="text" placeholder="태그 입력 후 Enter">
+      <button id="tagModalAdd">추가</button>
+    </div>
+  </div>
+</div>
+
+<div id="lightbox">
+  <span id="lb-close">✕</span>
+  <button id="lb-nav-prev">&#8249;</button>
+  <img id="lb-img" src="" alt="" crossorigin="anonymous">
+  <button id="lb-nav-next">&#8250;</button>
+  <div id="lb-info"></div>
+  <div id="lb-palette"></div>
+</div>
+
+<div id="selBar">
+  <span id="selCount">0장 선택됨</span>
+  <button class="sel-action primary" id="selZipBtn">↓ ZIP 다운로드</button>
+  <button class="sel-action" id="selDlBtn">↓ 개별 다운로드</button>
+  <button class="sel-action" id="selColBtn">⊕ 컬렉션 추가</button>
+  <button class="sel-action danger" id="selClearBtn">✕ 선택 해제</button>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const DRIVE_FOLDER_ID = '16euru12P6wZV2r5u0T-eQsDVZy_2kwG8';
+const DRIVE_API_KEY   = 'AIzaSyBFWLvLAQC_LRel2npcSuwyM1VSYIS87t8';
+const SUPABASE_URL    = 'https://qjqdzgwyrodsfckqnwkg.supabase.co';
+const SUPABASE_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqcWR6Z3d5cm9kc2Zja3Fud2tnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTEwNzAsImV4cCI6MjA5NTIyNzA3MH0.UR_t6Ojoten2k-_-1OmfR4DEwynh_jx4ob6fIKyP6lY';
+
+// ── Drive API ─────────────────────────────────────────────────────────────────
+const IMAGE_MIME  = new Set(['image/jpeg','image/png','image/gif','image/webp','image/avif']);
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
+
+async function driveList(folderId) {
+  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
+  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=1000&key=${DRIVE_API_KEY}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  return data.files || [];
+}
+
+async function fetchAllImages() {
+  const root = await driveList(DRIVE_FOLDER_ID);
+  const images = [];
+
+  for (const item of root) {
+    if (item.mimeType !== FOLDER_MIME) continue;
+
+    if (item.name === 'Fashion' || item.name === 'Still Life') {
+      const cat = item.name;
+      const files = await driveList(item.id);
+      for (const f of files) {
+        if (IMAGE_MIME.has(f.mimeType)) {
+          images.push({ id: f.id, name: f.name, cat, sub: '' });
+        } else if (f.mimeType === FOLDER_MIME) {
+          const sub = await driveList(f.id);
+          sub.filter(sf => IMAGE_MIME.has(sf.mimeType))
+             .forEach(sf => images.push({ id: sf.id, name: sf.name, cat, sub: '' }));
+        }
+      }
+    } else if (item.name === 'Model') {
+      const subs = await driveList(item.id);
+      for (const sub of subs) {
+        if (sub.mimeType !== FOLDER_MIME) {
+          if (IMAGE_MIME.has(sub.mimeType)) images.push({ id: sub.id, name: sub.name, cat: '모델', sub: '' });
+          continue;
+        }
+        const files = await driveList(sub.id);
+        files.filter(f => IMAGE_MIME.has(f.mimeType))
+             .forEach(f => images.push({ id: f.id, name: f.name, cat: '모델', sub: sub.name }));
+      }
+    }
+  }
+  return images;
+}
+
+function thumbUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w400`; }
+function fullUrl(id)  { return `https://drive.google.com/uc?id=${id}&export=view`; }
+function dlUrl(id)    { return `https://drive.google.com/uc?id=${id}&export=download`; }
+
+// ── Supabase ──────────────────────────────────────────────────────────────────
+async function sbReq(path, opts = {}) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method: opts.method || 'GET',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      ...(opts.prefer ? { 'Prefer': opts.prefer } : {}),
+    },
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+  });
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function loadTags() {
+  const rows = await sbReq('tags?select=image_id,tags');
+  return Object.fromEntries((rows || []).map(r => [r.image_id, r.tags]));
+}
+
+async function loadFavs() {
+  const rows = await sbReq('favorites?select=image_id');
+  return new Set((rows || []).map(r => r.image_id));
+}
+
+async function loadCollections() {
+  const rows = await sbReq('collections?select=name,image_ids');
+  return Object.fromEntries((rows || []).map(r => [r.name, r.image_ids]));
+}
+
+async function saveTags(id, tags) {
+  if (!tags || tags.length === 0) {
+    await sbReq(`tags?image_id=eq.${id}`, { method: 'DELETE' });
+  } else {
+    await sbReq('tags', {
+      method: 'POST',
+      prefer: 'resolution=merge-duplicates',
+      body: { image_id: id, tags, updated_at: new Date().toISOString() },
+    });
+  }
+}
+
+async function toggleFavSb(id, add) {
+  if (add) {
+    await sbReq('favorites', { method: 'POST', prefer: 'resolution=merge-duplicates', body: { image_id: id } });
+  } else {
+    await sbReq(`favorites?image_id=eq.${id}`, { method: 'DELETE' });
+  }
+}
+
+async function saveCollectionSb(name, imageIds) {
+  await sbReq('collections', {
+    method: 'POST',
+    prefer: 'resolution=merge-duplicates',
+    body: { name, image_ids: imageIds },
+  });
+}
+
+// ── Taxonomy ──────────────────────────────────────────────────────────────────
+const TAXONOMY = {
+  "Fashion": {
+    "People":     ["Male Solo", "Female Solo", "Mixed", "Duo", "Group"],
+    "Background": ["Studio", "Outdoor", "Urban", "Nature", "Beach", "Set"],
+    "Mood":       ["Casual", "Formal", "Street", "Luxury", "Minimal", "Hip", "Lovely", "Kitsch", "Feminine", "Energetic"],
+    "Items":      ["Outerwear", "Tops", "Bottoms", "Dress", "Shoes", "Accessories"],
+    "Lighting":   ["Natural Light", "Artificial Light"],
+  },
+  "Still Life": {
+    "Subject":    ["Shoes", "Clothing", "Bags", "Cosmetics", "Perfume", "Accessories", "Food", "Drinks", "Home/Interior"],
+    "Background": ["Studio", "Outdoor", "Set"],
+    "Mood":       ["Minimal", "Colorful", "Vintage", "Modern", "Emotional", "Hip", "Lovely", "Kitsch", "Feminine", "Energetic"],
+    "Lighting":   ["Natural Light", "Artificial Light"],
+  },
+  "Model": {
+    "Gender":     ["Male", "Female"],
+    "Style":      ["Trendy", "Traditional", "Cool", "Hip", "High Fashion", "Athletic", "Tofu", "Arabic"],
+    "Ethnicity":  ["Caucasian", "Black", "Latino", "Southeast Asian", "East Asian", "South Asian", "Mixed"],
+    "Lighting":   ["Natural Light", "Artificial Light"],
+  },
+};
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let IMAGES = [];
+let SHUFFLED = [];
+let TAGS = {};
+let FAVS = new Set();
+let COLLECTIONS = {};
+
+let activeCat = "all";
+let searchTerm = "";
+let showFavsOnly = false;
+let activeTag = null;
+let tagMode = false;
+let selectMode = false;
+let selectedImg = null;
+let lbIndex = 0;
+let visibleImages = [];
+const SELECTED = new Set();
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const grid      = document.getElementById("grid");
+const countEl   = document.getElementById("count");
+const emptyEl   = document.getElementById("empty");
+const lightbox  = document.getElementById("lightbox");
+const lbImg     = document.getElementById("lb-img");
+const lbInfo    = document.getElementById("lb-info");
+const searchEl  = document.getElementById("search");
+const favFilter = document.getElementById("favFilter");
+const activeTagChip  = document.getElementById("activeTagChip");
+const activeTagLabel = document.getElementById("activeTagLabel");
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ── Tag filter ────────────────────────────────────────────────────────────────
+function setTagFilter(tag) {
+  activeTag = tag;
+  if (tag) {
+    activeTagLabel.textContent = tag;
+    activeTagChip.classList.add("visible");
+  } else {
+    activeTagChip.classList.remove("visible");
+  }
+  render();
+  if (tagSearchOpen) updateTagSearchRow();
+}
+document.getElementById("clearTagBtn").onclick = () => setTagFilter(null);
+
+// ── Tag search chip panel ─────────────────────────────────────────────────────
+let tagSearchOpen = false;
+const tagSearchBtn = document.getElementById("tagSearchBtn");
+const tagSearchRow = document.getElementById("tagSearchRow");
+
+function updateTagSearchRow() {
+  tagSearchRow.innerHTML = "";
+  const cats = activeCat === "all" ? Object.keys(TAXONOMY) : [activeCat];
+  cats.forEach(cat => {
+    const groups = TAXONOMY[cat];
+    if (activeCat === "all") {
+      const catLabel = document.createElement("div");
+      catLabel.className = "ts-cat-label";
+      catLabel.textContent = cat;
+      tagSearchRow.appendChild(catLabel);
+    }
+    Object.entries(groups).forEach(([groupName, tags]) => {
+      const row = document.createElement("div");
+      row.className = "ts-group";
+      const label = document.createElement("span");
+      label.className = "ts-group-label";
+      label.textContent = groupName;
+      row.appendChild(label);
+      tags.forEach(tag => {
+        const chip = document.createElement("button");
+        chip.className = "ts-chip" + (activeTag === tag ? " active" : "");
+        chip.textContent = tag;
+        chip.onclick = () => setTagFilter(activeTag === tag ? null : tag);
+        row.appendChild(chip);
+      });
+      tagSearchRow.appendChild(row);
+    });
+  });
+}
+
+tagSearchBtn.onclick = () => {
+  tagSearchOpen = !tagSearchOpen;
+  tagSearchRow.classList.toggle("open", tagSearchOpen);
+  tagSearchBtn.classList.toggle("active", tagSearchOpen);
+  if (tagSearchOpen) updateTagSearchRow();
+};
+
+// ── Tagging mode ──────────────────────────────────────────────────────────────
+const tagModeBtn       = document.getElementById("tagModeBtn");
+const tagPanelHint     = document.getElementById("tagPanelHint");
+const tagPanelFilename = document.getElementById("tagPanelFilename");
+const tagProgressEl    = document.getElementById("tagProgressEl");
+const tagPanelBody     = document.getElementById("tagPanelBody");
+const pathToCard       = new Map();
+
+tagModeBtn.onclick = () => {
+  tagMode = !tagMode;
+  tagModeBtn.classList.toggle("active", tagMode);
+  document.body.classList.toggle("tag-mode", tagMode);
+  if (!tagMode) selectedImg = null;
+  render();
+};
+
+function selectImage(img) {
+  if (selectedImg) {
+    const prev = pathToCard.get(selectedImg.id);
+    if (prev) prev.classList.remove("selected");
+  }
+  selectedImg = img;
+  const card = pathToCard.get(img.id);
+  if (card) { card.classList.add("selected"); card.scrollIntoView({ block: "nearest" }); }
+
+  tagPanelHint.style.display = "none";
+  tagPanelFilename.textContent = img.name;
+  updateTagProgress();
+  renderTagPanelGroups(img);
+}
+
+function updateTagProgress() {
+  tagProgressEl.textContent = `${Object.keys(TAGS).length} / ${IMAGES.length} 태깅됨`;
+}
+
+function renderTagPanelGroups(img) {
+  const groups = TAXONOMY[img.cat] || {};
+  tagPanelBody.innerHTML = "";
+  tagPanelBody.classList.add("visible");
+
+  Object.entries(groups).forEach(([groupName, tags]) => {
+    const groupEl = document.createElement("div");
+    groupEl.className = "tag-group";
+
+    const label = document.createElement("div");
+    label.className = "tag-group-label";
+    label.textContent = groupName;
+    groupEl.appendChild(label);
+
+    const btns = document.createElement("div");
+    btns.className = "tag-btns";
+
+    tags.forEach(t => {
+      const btn = document.createElement("button");
+      btn.className = "tag-toggle" + ((TAGS[img.id] || []).includes(t) ? " on" : "");
+      btn.textContent = t;
+      btn.onclick = async () => {
+        if (!TAGS[img.id]) TAGS[img.id] = [];
+        const idx = TAGS[img.id].indexOf(t);
+        if (idx >= 0) TAGS[img.id].splice(idx, 1);
+        else TAGS[img.id].push(t);
+        if (TAGS[img.id].length === 0) delete TAGS[img.id];
+        btn.classList.toggle("on", (TAGS[img.id] || []).includes(t));
+        updateCardTagPills(img.id);
+        updateTagProgress();
+        saveTags(img.id, TAGS[img.id] || []).catch(console.error);
+      };
+      btns.appendChild(btn);
+    });
+
+    groupEl.appendChild(btns);
+    tagPanelBody.appendChild(groupEl);
+  });
+}
+
+function updateCardTagPills(id) {
+  const card = pathToCard.get(id);
+  if (!card) return;
+  const existing = card.querySelector(".card-tags");
+  if (existing) existing.remove();
+  const tags = TAGS[id];
+  if (tags && tags.length > 0) {
+    const area = document.createElement("div");
+    area.className = "card-tags";
+    tags.forEach(t => {
+      const pill = document.createElement("span");
+      pill.className = "ctag" + (activeTag === t ? " active-tag" : "");
+      pill.textContent = "#" + t;
+      pill.onclick = e => { e.stopPropagation(); setTagFilter(activeTag === t ? null : t); };
+      area.appendChild(pill);
+    });
+    card.appendChild(area);
+  }
+}
+
+// ── Favorites filter ──────────────────────────────────────────────────────────
+favFilter.onclick = () => {
+  showFavsOnly = !showFavsOnly;
+  favFilter.classList.toggle("active", showFavsOnly);
+  render();
+};
+
+// ── Tag modal ─────────────────────────────────────────────────────────────────
+let tagModalId   = null;
+let tagModalName = null;
+const tagModal      = document.getElementById("tagModal");
+const tagModalTitle = document.getElementById("tagModalTitle");
+const tagModalPills = document.getElementById("tagModalPills");
+const tagModalInput = document.getElementById("tagModalInput");
+
+function openTagModal(id, name) {
+  tagModalId   = id;
+  tagModalName = name;
+  tagModalTitle.textContent = name;
+  refreshTagPills();
+  tagModalInput.value = "";
+  tagModal.classList.add("open");
+  tagModalInput.focus();
+}
+
+function refreshTagPills() {
+  const tags = TAGS[tagModalId] || [];
+  tagModalPills.innerHTML = "";
+  if (tags.length === 0) {
+    tagModalPills.innerHTML = '<span style="color:#555;font-size:11px">태그 없음</span>';
+    return;
+  }
+  tags.forEach(t => {
+    const span = document.createElement("span");
+    span.className = "modal-tag";
+    const rm = document.createElement("button");
+    rm.className = "rm";
+    rm.textContent = "×";
+    rm.onclick = async () => {
+      TAGS[tagModalId] = (TAGS[tagModalId] || []).filter(x => x !== t);
+      if (TAGS[tagModalId].length === 0) delete TAGS[tagModalId];
+      saveTags(tagModalId, TAGS[tagModalId] || []).catch(console.error);
+      refreshTagPills();
+      render();
+    };
+    span.append(document.createTextNode(t), rm);
+    tagModalPills.appendChild(span);
+  });
+}
+
+function addTagFromInput() {
+  const val = tagModalInput.value.trim();
+  if (!val) return;
+  if (!TAGS[tagModalId]) TAGS[tagModalId] = [];
+  if (!TAGS[tagModalId].includes(val)) {
+    TAGS[tagModalId].push(val);
+    saveTags(tagModalId, TAGS[tagModalId]).catch(console.error);
+    refreshTagPills();
+    render();
+  }
+  tagModalInput.value = "";
+  tagModalInput.focus();
+}
+
+document.getElementById("tagModalClose").onclick = () => tagModal.classList.remove("open");
+document.getElementById("tagModalAdd").onclick = addTagFromInput;
+tagModalInput.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); addTagFromInput(); } });
+tagModal.addEventListener("click", e => { if (e.target === tagModal) tagModal.classList.remove("open"); });
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render() {
+  const q = searchTerm.toLowerCase();
+
+  visibleImages = SHUFFLED.filter(img => {
+    if (showFavsOnly && !FAVS.has(img.id)) return false;
+    if (activeTag && !(TAGS[img.id] || []).includes(activeTag)) return false;
+    if (activeCat !== "all" && img.cat !== activeCat) return false;
+    if (q) {
+      const inName = img.name.toLowerCase().includes(q);
+      const inTags = (TAGS[img.id] || []).some(t => t.toLowerCase().includes(q));
+      if (!inName && !inTags) return false;
+    }
+    return true;
+  });
+
+  grid.innerHTML = "";
+  pathToCard.clear();
+
+  visibleImages.forEach((img, idx) => {
+    const card = document.createElement("div");
+    card.className = "img-card" + (selectedImg && selectedImg.id === img.id ? " selected" : "");
+    pathToCard.set(img.id, card);
+
+    const el = document.createElement("img");
+    el.src = thumbUrl(img.id);
+    el.alt = img.name;
+    el.loading = "lazy";
+    el.decoding = "async";
+    card.appendChild(el);
+
+    const favBtn = document.createElement("button");
+    favBtn.className = "fav-btn" + (FAVS.has(img.id) ? " on" : "");
+    favBtn.textContent = "♥";
+    favBtn.title = "즐겨찾기";
+    favBtn.onclick = async e => {
+      e.stopPropagation();
+      const add = !FAVS.has(img.id);
+      if (add) FAVS.add(img.id); else FAVS.delete(img.id);
+      favBtn.classList.toggle("on", FAVS.has(img.id));
+      toggleFavSb(img.id, add).catch(console.error);
+    };
+    card.appendChild(favBtn);
+
+    const tagBtn = document.createElement("button");
+    tagBtn.className = "tag-btn";
+    tagBtn.textContent = "# 태그";
+    tagBtn.title = "태그 편집";
+    tagBtn.onclick = e => { e.stopPropagation(); openTagModal(img.id, img.name); };
+    card.appendChild(tagBtn);
+
+    const cardTags = TAGS[img.id];
+    if (cardTags && cardTags.length > 0) {
+      const tagsArea = document.createElement("div");
+      tagsArea.className = "card-tags";
+      cardTags.forEach(t => {
+        const pill = document.createElement("span");
+        pill.className = "ctag" + (activeTag === t ? " active-tag" : "");
+        pill.textContent = "#" + t;
+        pill.onclick = e => { e.stopPropagation(); setTagFilter(activeTag === t ? null : t); };
+        tagsArea.appendChild(pill);
+      });
+      card.appendChild(tagsArea);
+    }
+
+    const selCheck = document.createElement("div");
+    selCheck.className = "sel-check";
+    card.appendChild(selCheck);
+    if (SELECTED.has(img.id)) card.classList.add("sel-on");
+
+    card.onclick = () => {
+      if (tagMode) return selectImage(img);
+      if (selectMode) return toggleSelect(img.id, card);
+      openLightbox(idx);
+    };
+    grid.appendChild(card);
+  });
+
+  countEl.textContent = `${visibleImages.length}장`;
+  emptyEl.style.display = visibleImages.length === 0 ? "block" : "none";
+}
+
+// ── Category tabs ─────────────────────────────────────────────────────────────
+document.getElementById("catTabs").addEventListener("click", e => {
+  const btn = e.target.closest(".cat-tab");
+  if (!btn) return;
+  document.querySelectorAll(".cat-tab").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  activeCat = btn.dataset.cat;
+  render();
+  if (tagSearchOpen) updateTagSearchRow();
+});
+
+// ── Shuffle ───────────────────────────────────────────────────────────────────
+document.getElementById("shuffleBtn").onclick = () => {
+  const fresh = shuffle(SHUFFLED);
+  SHUFFLED.splice(0, SHUFFLED.length, ...fresh);
+  render();
+};
+
+// ── Search ────────────────────────────────────────────────────────────────────
+searchEl.addEventListener("input", e => {
+  searchTerm = e.target.value.trim();
+  render();
+});
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function openLightbox(idx) {
+  lbIndex = idx;
+  showLbImage();
+  lightbox.classList.add("open");
+}
+
+function showLbImage() {
+  const img = visibleImages[lbIndex];
+  lbImg.src = fullUrl(img.id);
+  lbInfo.textContent = `${img.name}   ${lbIndex + 1} / ${visibleImages.length}`;
+  const palette = document.getElementById("lb-palette");
+  palette.innerHTML = "";
+  lbImg.onload = () => {
+    const colors = extractPalette(lbImg);
+    palette.innerHTML = "";
+    colors.forEach(color => {
+      const sw = document.createElement("div");
+      sw.className = "lb-swatch";
+      sw.style.background = color;
+      sw.title = color;
+      palette.appendChild(sw);
+    });
+  };
+}
+
+document.getElementById("lb-close").onclick = e => {
+  e.stopPropagation();
+  lightbox.classList.remove("open");
+};
+lightbox.addEventListener("click", e => { if (e.target === lightbox) lightbox.classList.remove("open"); });
+
+document.getElementById("lb-nav-prev").onclick = e => {
+  e.stopPropagation();
+  lbIndex = (lbIndex - 1 + visibleImages.length) % visibleImages.length;
+  showLbImage();
+};
+document.getElementById("lb-nav-next").onclick = e => {
+  e.stopPropagation();
+  lbIndex = (lbIndex + 1) % visibleImages.length;
+  showLbImage();
+};
+
+document.addEventListener("keydown", e => {
+  if (!lightbox.classList.contains("open")) return;
+  if (e.key === "Escape") lightbox.classList.remove("open");
+  if (e.key === "ArrowLeft") { lbIndex = (lbIndex - 1 + visibleImages.length) % visibleImages.length; showLbImage(); }
+  if (e.key === "ArrowRight") { lbIndex = (lbIndex + 1) % visibleImages.length; showLbImage(); }
+});
+
+// ── Select mode ───────────────────────────────────────────────────────────────
+const selModeBtn = document.getElementById("selModeBtn");
+const selBar     = document.getElementById("selBar");
+const selCount   = document.getElementById("selCount");
+
+function updateSelBar() {
+  const n = SELECTED.size;
+  selCount.textContent = `${n}장 선택됨`;
+  selBar.classList.toggle("visible", n > 0);
+}
+
+function toggleSelect(id, card) {
+  if (SELECTED.has(id)) SELECTED.delete(id);
+  else SELECTED.add(id);
+  const el = card || pathToCard.get(id);
+  if (el) el.classList.toggle("sel-on", SELECTED.has(id));
+  updateSelBar();
+}
+
+function clearSelection() {
+  SELECTED.clear();
+  document.querySelectorAll(".img-card.sel-on").forEach(c => c.classList.remove("sel-on"));
+  updateSelBar();
+}
+
+selModeBtn.onclick = () => {
+  selectMode = !selectMode;
+  selModeBtn.classList.toggle("active", selectMode);
+  document.body.classList.toggle("select-mode", selectMode);
+  if (!selectMode) clearSelection();
+};
+document.getElementById("selClearBtn").onclick = clearSelection;
+
+// ── Download ──────────────────────────────────────────────────────────────────
+function getSelectedImages() {
+  return IMAGES.filter(img => SELECTED.has(img.id));
+}
+
+function downloadSelected() {
+  getSelectedImages().forEach((img, i) => {
+    setTimeout(() => {
+      const a = document.createElement("a");
+      a.href = dlUrl(img.id);
+      a.download = img.name;
+      a.click();
+    }, i * 400);
+  });
+}
+
+async function downloadZip() {
+  const imgs = getSelectedImages();
+  if (!imgs.length) return;
+  selZipBtn.textContent = "준비 중…";
+  selZipBtn.disabled = true;
+  const zip = new JSZip();
+  for (const img of imgs) {
+    try {
+      const resp = await fetch(dlUrl(img.id));
+      if (!resp.ok) throw new Error();
+      zip.file(img.name, await resp.blob());
+    } catch { /* skip */ }
+  }
+  const blob = await zip.generateAsync({ type: "blob" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "selection.zip";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  selZipBtn.textContent = "↓ ZIP 다운로드";
+  selZipBtn.disabled = false;
+}
+
+const selZipBtn = document.getElementById("selZipBtn");
+selZipBtn.onclick = downloadZip;
+document.getElementById("selDlBtn").onclick = downloadSelected;
+
+// ── Collections ───────────────────────────────────────────────────────────────
+document.getElementById("selColBtn").onclick = async () => {
+  if (!SELECTED.size) return;
+  const name = prompt("컬렉션 이름:", "New Collection");
+  if (!name || !name.trim()) return;
+  const key = name.trim();
+  if (!COLLECTIONS[key]) COLLECTIONS[key] = [];
+  [...SELECTED].forEach(id => { if (!COLLECTIONS[key].includes(id)) COLLECTIONS[key].push(id); });
+  saveCollectionSb(key, COLLECTIONS[key]).catch(console.error);
+  alert(`${SELECTED.size}장을 "${key}"에 추가했습니다.`);
+};
+
+// ── Color palette ─────────────────────────────────────────────────────────────
+function extractPalette(imgEl, n = 5) {
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 80;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(imgEl, 0, 0, 80, 80);
+  try {
+    const data = ctx.getImageData(0, 0, 80, 80).data;
+    const map = {};
+    for (let i = 0; i < data.length; i += 16) {
+      const r = Math.round(data[i]   / 24) * 24;
+      const g = Math.round(data[i+1] / 24) * 24;
+      const b = Math.round(data[i+2] / 24) * 24;
+      const k = `${r},${g},${b}`;
+      map[k] = (map[k] || 0) + 1;
+    }
+    return Object.entries(map).sort((a,b) => b[1]-a[1]).slice(0,n).map(([k]) => `rgb(${k})`);
+  } catch { return []; }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  countEl.textContent = "로딩 중…";
+  try {
+    const [images, tags, favs, collections] = await Promise.all([
+      fetchAllImages(),
+      loadTags(),
+      loadFavs(),
+      loadCollections(),
+    ]);
+    IMAGES      = images;
+    TAGS        = tags;
+    FAVS        = favs;
+    COLLECTIONS = collections;
+    SHUFFLED    = shuffle(IMAGES);
+    render();
+  } catch (err) {
+    console.error(err);
+    countEl.textContent = "로드 실패 — 콘솔 확인";
+  }
+}
+
+init();
+</script>
+</body>
+</html>
