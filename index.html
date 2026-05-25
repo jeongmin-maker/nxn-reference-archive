@@ -513,57 +513,16 @@
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const DRIVE_FOLDER_ID = '16euru12P6wZV2r5u0T-eQsDVZy_2kwG8';
-const DRIVE_API_KEY   = 'AIzaSyBFWLvLAQC_LRel2npcSuwyM1VSYIS87t8';
+const APPS_SCRIPT_URL = 'https://script.google.com/a/macros/nxn.ai/s/AKfycbxy0nSC1G79YEV1rZH1Yt7EXIkYaqm0e9oyodJZGF2T6BgrshDE1FxLgNCainh0zAwllQ/exec';
 const SUPABASE_URL    = 'https://qjqdzgwyrodsfckqnwkg.supabase.co';
 const SUPABASE_KEY    = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqcWR6Z3d5cm9kc2Zja3Fud2tnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTEwNzAsImV4cCI6MjA5NTIyNzA3MH0.UR_t6Ojoten2k-_-1OmfR4DEwynh_jx4ob6fIKyP6lY';
 
-// ── Drive API ─────────────────────────────────────────────────────────────────
-const IMAGE_MIME  = new Set(['image/jpeg','image/png','image/gif','image/webp','image/avif']);
-const FOLDER_MIME = 'application/vnd.google-apps.folder';
-
-async function driveList(folderId) {
-  const q = encodeURIComponent(`'${folderId}' in parents and trashed=false`);
-  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=1000&key=${DRIVE_API_KEY}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message);
-  return data.files || [];
-}
-
+// ── Drive image fetch (via Apps Script) ───────────────────────────────────────
 async function fetchAllImages() {
-  const root = await driveList(DRIVE_FOLDER_ID);
-  const images = [];
-
-  for (const item of root) {
-    if (item.mimeType !== FOLDER_MIME) continue;
-
-    if (item.name === 'Fashion' || item.name === 'Still Life') {
-      const cat = item.name;
-      const files = await driveList(item.id);
-      for (const f of files) {
-        if (IMAGE_MIME.has(f.mimeType)) {
-          images.push({ id: f.id, name: f.name, cat, sub: '' });
-        } else if (f.mimeType === FOLDER_MIME) {
-          const sub = await driveList(f.id);
-          sub.filter(sf => IMAGE_MIME.has(sf.mimeType))
-             .forEach(sf => images.push({ id: sf.id, name: sf.name, cat, sub: '' }));
-        }
-      }
-    } else if (item.name === 'Model') {
-      const subs = await driveList(item.id);
-      for (const sub of subs) {
-        if (sub.mimeType !== FOLDER_MIME) {
-          if (IMAGE_MIME.has(sub.mimeType)) images.push({ id: sub.id, name: sub.name, cat: '모델', sub: '' });
-          continue;
-        }
-        const files = await driveList(sub.id);
-        files.filter(f => IMAGE_MIME.has(f.mimeType))
-             .forEach(f => images.push({ id: f.id, name: f.name, cat: '모델', sub: sub.name }));
-      }
-    }
-  }
-  return images;
+  const res = await fetch(APPS_SCRIPT_URL);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
 }
 
 function thumbUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w400`; }
