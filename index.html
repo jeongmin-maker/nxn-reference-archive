@@ -577,7 +577,9 @@ async function sbReq(path, opts = {}) {
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   if (res.status === 204) return null;
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw new Error(`[${path}] ${data.message || res.status}`);
+  return data;
 }
 
 async function loadTags() {
@@ -632,18 +634,21 @@ const TAXONOMY = {
     "Mood":       ["Casual", "Formal", "Street", "Luxury", "Minimal", "Hip", "Lovely", "Kitsch", "Feminine", "Energetic"],
     "Items":      ["Outerwear", "Tops", "Bottoms", "Dress", "Shoes", "Accessories"],
     "Lighting":   ["Natural Light", "Artificial Light"],
+    "시간대":     ["한낮", "골든아워", "밤", "새벽"],
   },
   "Still Life": {
     "Subject":    ["Shoes", "Clothing", "Bags", "Cosmetics", "Perfume", "Accessories", "Food", "Drinks", "Home/Interior"],
     "Background": ["Studio", "Outdoor", "Set"],
     "Mood":       ["Minimal", "Colorful", "Vintage", "Modern", "Emotional", "Hip", "Lovely", "Kitsch", "Feminine", "Energetic"],
     "Lighting":   ["Natural Light", "Artificial Light"],
+    "시간대":     ["한낮", "골든아워", "밤", "새벽"],
   },
   "Model": {
     "Gender":     ["Male", "Female"],
     "Style":      ["Trendy", "Traditional", "Cool", "Hip", "High Fashion", "Athletic", "Tofu", "Arabic"],
     "Ethnicity":  ["Caucasian", "Black", "Latino", "Southeast Asian", "East Asian", "South Asian", "Mixed"],
     "Lighting":   ["Natural Light", "Artificial Light"],
+    "시간대":     ["한낮", "골든아워", "밤", "새벽"],
   },
 };
 
@@ -1248,7 +1253,7 @@ async function init() {
     render();
   } catch (err) {
     console.error(err);
-    countEl.textContent = "로드 실패 — 콘솔 확인";
+    countEl.textContent = `로드 실패 — ${err.message}`;
   }
 }
 
