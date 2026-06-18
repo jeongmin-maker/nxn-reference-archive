@@ -1,7 +1,7 @@
 // Vercel 서버리스 함수 — Gemini 자동 태깅
 // Vercel 프로젝트 설정에서 환경변수 GEMINI_API_KEY 추가 필요
 
-const MODEL = 'gemini-3-flash-preview';
+const MODEL = 'gemini-2.5-flash';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -47,7 +47,10 @@ export default async function handler(req, res) {
             { inline_data: { mime_type: 'image/jpeg', data: b64 } },
           ],
         }],
-        generationConfig: { responseMimeType: 'application/json' },
+        generationConfig: {
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     });
     const data = await gRes.json();
