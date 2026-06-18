@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ARCHIVE</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -550,10 +552,17 @@
 
 <script>
 // ── Config ────────────────────────────────────────────────────────────────────
-const SUPABASE_URL = 'https://qjqdzgwyrodsfckqnwkg.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqcWR6Z3d5cm9kc2Zja3Fud2tnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTEwNzAsImV4cCI6MjA5NTIyNzA3MH0.UR_t6Ojoten2k-_-1OmfR4DEwynh_jx4ob6fIKyP6lY';
+firebase.initializeApp({
+  apiKey: "AIzaSyCkrNQveRsRXXcSFRbOET71jQ2R6GaIrDs",
+  authDomain: "nxn-archive.firebaseapp.com",
+  projectId: "nxn-archive",
+  storageBucket: "nxn-archive.firebasestorage.app",
+  messagingSenderId: "574503184661",
+  appId: "1:574503184661:web:6fb8fcb1a101dfedcea11c",
+});
+const db = firebase.firestore();
 
-// ── Image list (served from same origin — no CORS) ────────────────────────────
+// ── Image list ────────────────────────────────────────────────────────────────
 async function fetchAllImages() {
   const res = await fetch('images.json');
   if (!res.ok) throw new Error('images.json 로드 실패');
@@ -564,66 +573,48 @@ function thumbUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w
 function fullUrl(id)  { return `https://drive.google.com/uc?id=${id}&export=view`; }
 function dlUrl(id)    { return `https://drive.google.com/uc?id=${id}&export=download`; }
 
-// ── Supabase ──────────────────────────────────────────────────────────────────
-async function sbReq(path, opts = {}) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    method: opts.method || 'GET',
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      ...(opts.prefer ? { 'Prefer': opts.prefer } : {}),
-    },
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-  });
-  if (res.status === 204) return null;
-  const data = await res.json();
-  if (!res.ok) throw new Error(`[${path}] ${data.message || res.status}`);
-  return data;
-}
-
+// ── Firebase ──────────────────────────────────────────────────────────────────
 async function loadTags() {
-  const rows = await sbReq('tags?select=image_id,tags');
-  return Object.fromEntries((rows || []).map(r => [r.image_id, r.tags]));
+  const snap = await db.collection('tags').get();
+  const result = {};
+  snap.forEach(doc => { result[doc.id] = doc.data().tags || []; });
+  return result;
 }
 
 async function loadFavs() {
   if (!currentUser) return new Set();
-  const rows = await sbReq(`favorites?select=image_id&user_id=eq.${encodeURIComponent(currentUser)}`);
-  return new Set((rows || []).map(r => r.image_id));
+  const snap = await db.collection('favorites').where('user_id', '==', currentUser).get();
+  const result = new Set();
+  snap.forEach(doc => result.add(doc.data().image_id));
+  return result;
 }
 
 async function loadCollections() {
-  const rows = await sbReq('collections?select=name,image_ids');
-  return Object.fromEntries((rows || []).map(r => [r.name, r.image_ids]));
+  const snap = await db.collection('collections').get();
+  const result = {};
+  snap.forEach(doc => { result[doc.id] = doc.data().image_ids || []; });
+  return result;
 }
 
 async function saveTags(id, tags) {
   if (!tags || tags.length === 0) {
-    await sbReq(`tags?image_id=eq.${id}`, { method: 'DELETE' });
+    await db.collection('tags').doc(id).delete();
   } else {
-    await sbReq('tags', {
-      method: 'POST',
-      prefer: 'resolution=merge-duplicates',
-      body: { image_id: id, tags, updated_at: new Date().toISOString() },
-    });
+    await db.collection('tags').doc(id).set({ tags, updated_at: new Date().toISOString() });
   }
 }
 
 async function toggleFavSb(id, add, uid) {
+  const docId = `${uid}__${id}`;
   if (add) {
-    await sbReq('favorites', { method: 'POST', prefer: 'resolution=merge-duplicates', body: { user_id: uid, image_id: id } });
+    await db.collection('favorites').doc(docId).set({ user_id: uid, image_id: id });
   } else {
-    await sbReq(`favorites?user_id=eq.${encodeURIComponent(uid)}&image_id=eq.${id}`, { method: 'DELETE' });
+    await db.collection('favorites').doc(docId).delete();
   }
 }
 
 async function saveCollectionSb(name, imageIds) {
-  await sbReq('collections', {
-    method: 'POST',
-    prefer: 'resolution=merge-duplicates',
-    body: { name, image_ids: imageIds },
-  });
+  await db.collection('collections').doc(name).set({ image_ids: imageIds });
 }
 
 // ── Taxonomy ──────────────────────────────────────────────────────────────────
