@@ -528,7 +528,7 @@
 <div id="lightbox">
   <span id="lb-close">✕</span>
   <button id="lb-nav-prev">&#8249;</button>
-  <img id="lb-img" src="" alt="" crossorigin="anonymous">
+  <img id="lb-img" src="" alt="">
   <button id="lb-nav-next">&#8250;</button>
   <div id="lb-info"></div>
   <div id="lb-palette"></div>
@@ -1065,19 +1065,6 @@ function showLbImage() {
   const img = visibleImages[lbIndex];
   lbImg.src = fullUrl(img.id);
   lbInfo.textContent = `${img.name}   ${lbIndex + 1} / ${visibleImages.length}`;
-  const palette = document.getElementById("lb-palette");
-  palette.innerHTML = "";
-  lbImg.onload = () => {
-    const colors = extractPalette(lbImg);
-    palette.innerHTML = "";
-    colors.forEach(color => {
-      const sw = document.createElement("div");
-      sw.className = "lb-swatch";
-      sw.style.background = color;
-      sw.title = color;
-      palette.appendChild(sw);
-    });
-  };
 }
 
 document.getElementById("lb-close").onclick = e => {
