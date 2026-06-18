@@ -430,6 +430,15 @@
   .tag-toggle:hover { border-color: #666; color: #ccc; }
   .tag-toggle.on { background: #e8e8e8; color: #111; border-color: #e8e8e8; font-weight: 500; }
 
+  .ai-tag-btn {
+    width: 100%; padding: 8px; margin-bottom: 16px;
+    background: #2a2a2a; border: 1px solid #444;
+    color: #ddd; border-radius: 6px; cursor: pointer;
+    font-size: 12px; transition: all 0.15s;
+  }
+  .ai-tag-btn:hover:not(:disabled) { background: #333; border-color: #666; color: #fff; }
+  .ai-tag-btn:disabled { opacity: 0.6; cursor: default; }
+
   .img-card.selected { outline: 2px solid rgba(255,255,255,0.85); outline-offset: -2px; }
   body.tag-mode .img-card { cursor: pointer; }
   body.tag-mode .img-card .tag-btn { display: none !important; }
@@ -821,6 +830,12 @@ function renderTagPanelGroups(img) {
   tagPanelBody.innerHTML = "";
   tagPanelBody.classList.add("visible");
 
+  const aiBtn = document.createElement("button");
+  aiBtn.className = "ai-tag-btn";
+  aiBtn.textContent = "✨ AI 자동 추천";
+  aiBtn.onclick = () => autoTag(img, aiBtn);
+  tagPanelBody.appendChild(aiBtn);
+
   Object.entries(groups).forEach(([groupName, tags]) => {
     const groupEl = document.createElement("div");
     groupEl.className = "tag-group";
@@ -854,6 +869,33 @@ function renderTagPanelGroups(img) {
     groupEl.appendChild(btns);
     tagPanelBody.appendChild(groupEl);
   });
+}
+
+async function autoTag(img, btn) {
+  const groups = TAXONOMY[img.cat] || {};
+  btn.disabled = true;
+  btn.textContent = "✨ 분석 중…";
+  try {
+    const res = await fetch('/api/tag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageId: img.id, category: img.cat, groups }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '요청 실패');
+    const suggested = data.tags || [];
+    const cur = new Set(TAGS[img.id] || []);
+    suggested.forEach(t => cur.add(t));
+    TAGS[img.id] = [...cur];
+    saveTags(img.id, TAGS[img.id] || []).catch(console.error);
+    updateCardTagPills(img.id);
+    updateTagProgress();
+    renderTagPanelGroups(img);  // 토글 ON 상태 반영 + 버튼 초기화
+  } catch (err) {
+    console.error(err);
+    btn.disabled = false;
+    btn.textContent = "✨ 오류 — 다시 시도";
+  }
 }
 
 function updateCardTagPills(id) {
