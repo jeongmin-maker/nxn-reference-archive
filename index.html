@@ -972,7 +972,7 @@ function render() {
     const el = document.createElement("img");
     el.src = thumbUrl(img.id);
     el.alt = img.name;
-    el.loading = "eager";
+    el.loading = "lazy";
     card.appendChild(el);
 
     const favBtn = document.createElement("button");
@@ -1027,21 +1027,7 @@ function render() {
   countEl.textContent = `${visibleImages.length}장`;
   emptyEl.style.display = visibleImages.length === 0 ? "block" : "none";
 
-  // 첫 20장이 로드되면 그리드 표시 (최대 1.5초 대기)
-  const allImgs = [...grid.querySelectorAll('img')];
-  const batch = allImgs.slice(0, Math.min(20, allImgs.length));
-  let shown = false;
-  function showGrid() {
-    if (shown) return; shown = true;
-    grid.style.opacity = '1';
-  }
-  if (batch.length === 0) { showGrid(); return; }
-  let loaded = 0;
-  batch.forEach(img => {
-    if (img.complete) { if (++loaded >= batch.length) showGrid(); }
-    else img.addEventListener('load', () => { if (++loaded >= batch.length) showGrid(); }, { once: true });
-  });
-  setTimeout(showGrid, 1500);
+  grid.style.opacity = '1';
 }
 
 // ── Category tabs ─────────────────────────────────────────────────────────────
