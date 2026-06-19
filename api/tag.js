@@ -2,6 +2,9 @@
 // Vercel 프로젝트 설정에서 환경변수 GEMINI_API_KEY 추가 필요
 
 const MODEL = 'gemini-2.5-flash';
+export const maxDuration = 30;
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -35,27 +38,36 @@ export default async function handler(req, res) {
       `Tag this "${category}" reference image. From the list below, pick ONLY the tags that clearly apply. ` +
       `Return a JSON array of tag strings, using the exact spelling from the list.\n\n${tagList}`;
 
-    // 3. Gemini 호출
+    // 3. Gemini 호출 (레이트리밋 시 재시도)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
-    const gRes = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: prompt },
-            { inline_data: { mime_type: 'image/jpeg', data: b64 } },
-          ],
-        }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 },
-        },
-      }),
+    const reqBody = JSON.stringify({
+      contents: [{
+        parts: [
+          { text: prompt },
+          { inline_data: { mime_type: 'image/jpeg', data: b64 } },
+        ],
+      }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 0 },
+      },
     });
-    const data = await gRes.json();
+    let gRes, data;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      gRes = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: reqBody,
+      });
+      data = await gRes.json();
+      if (gRes.status !== 429) break;
+      await sleep(5000);  // 레이트리밋 — 5초 대기 후 재시도
+    }
     if (!gRes.ok) {
-      res.status(500).json({ error: data.error?.message || 'Gemini 오류' });
+      const msg = gRes.status === 429
+        ? '사용량 한도 초과 — 잠시 후 다시 시도해주세요'
+        : (data.error?.message || 'Gemini 오류');
+      res.status(gRes.status === 429 ? 429 : 500).json({ error: msg });
       return;
     }
 
