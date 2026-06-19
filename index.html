@@ -497,11 +497,19 @@
   }
   .project-count { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
 
+  #personSelect {
+    background: var(--tag-bg); border: 1px solid var(--border);
+    color: var(--text); padding: 5px 10px; border-radius: 6px;
+    font-size: 12px; outline: none; cursor: pointer;
+  }
+  #personSelect:focus { border-color: #555; }
+
   body.project-mode #favFilter,
   body.project-mode #tagModeBtn,
   body.project-mode #shuffleBtn,
   body.project-mode #tagSearchBtn,
   body.project-mode #selModeBtn,
+  body.project-mode #personSelect,
   body.project-mode .search-wrap,
   body.project-mode #activeTagChip,
   body.project-mode #tagSearchRow { display: none !important; }
@@ -511,6 +519,8 @@
 
 <header>
   <h1>ARCHIVE</h1>
+
+  <select id="personSelect" title="사람 선택"></select>
 
   <div class="cat-tabs" id="catTabs">
     <button class="cat-tab active" data-cat="all">All</button>
@@ -715,6 +725,9 @@ let PROJECTS = [];
 let projectsLoaded = false;
 let projectMode = false;
 let activeProject = null;
+
+const PEOPLE = ["Jeongmin", "Hyeji", "Bada", "Hyeonji", "Hari"];
+let activePerson = localStorage.getItem("nxn_person") || "all";
 
 let activeCat = "all";
 let searchTerm = "";
@@ -982,6 +995,27 @@ favFilter.onclick = () => {
   render();
 };
 
+// ── Person selector ───────────────────────────────────────────────────────────
+const personSelect = document.getElementById("personSelect");
+(function initPersonSelect() {
+  const optAll = document.createElement("option");
+  optAll.value = "all";
+  optAll.textContent = "전체";
+  personSelect.appendChild(optAll);
+  PEOPLE.forEach(name => {
+    const o = document.createElement("option");
+    o.value = name;
+    o.textContent = name;
+    personSelect.appendChild(o);
+  });
+  personSelect.value = activePerson;
+})();
+personSelect.addEventListener("change", () => {
+  activePerson = personSelect.value;
+  localStorage.setItem("nxn_person", activePerson);
+  render();
+});
+
 // ── Tag modal ─────────────────────────────────────────────────────────────────
 let tagModalId   = null;
 let tagModalName = null;
@@ -1050,6 +1084,7 @@ function render() {
   const q = searchTerm.toLowerCase();
 
   visibleImages = SHUFFLED.filter(img => {
+    if (activePerson !== "all" && img.person !== activePerson) return false;
     if (showFavsOnly && !FAVS.has(img.id)) return false;
     if (activeTag && !(TAGS[img.id] || []).includes(activeTag)) return false;
     if (activeCat !== "all" && img.cat !== activeCat) return false;
