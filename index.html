@@ -469,6 +469,42 @@
     cursor: pointer; font-size: 13px; font-weight: 500;
   }
   #nameModalSubmit:hover { background: #e8e8e8; }
+
+  .projects-tab { margin-left: 6px; }
+
+  #projectBar { display: flex; align-items: center; gap: 12px; padding: 0 0 14px; }
+  #projectBar:empty { display: none; }
+  .project-back {
+    background: #2a2a2a; border: 1px solid #444; color: #ddd;
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+  }
+  .project-back:hover { background: #333; color: #fff; }
+  .project-title { font-size: 13px; color: #999; letter-spacing: 0.03em; }
+
+  #grid.project-list-mode {
+    columns: auto; column-gap: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+  }
+  .project-card {
+    cursor: pointer; background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; overflow: hidden; transition: border-color 0.15s;
+  }
+  .project-card:hover { border-color: #555; }
+  .project-card img { display: block; width: 100%; height: 160px; object-fit: cover; background: #222; }
+  .project-label {
+    padding: 9px 11px; font-size: 12px; color: var(--text);
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  }
+  .project-count { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+
+  body.project-mode #favFilter,
+  body.project-mode #tagModeBtn,
+  body.project-mode #shuffleBtn,
+  body.project-mode #tagSearchBtn,
+  body.project-mode #selModeBtn,
+  body.project-mode .search-wrap,
+  body.project-mode #activeTagChip,
+  body.project-mode #tagSearchRow { display: none !important; }
 </style>
 </head>
 <body>
@@ -483,6 +519,7 @@
     <button class="cat-tab" data-cat="Pose">Pose</button>
     <button class="cat-tab" data-cat="Beauty">Beauty</button>
     <button class="cat-tab" data-cat="Still Life">Still Life</button>
+    <button class="cat-tab projects-tab" id="projectsTab" data-cat="__projects__">📁 Projects</button>
   </div>
 
   <button class="fav-filter" id="favFilter">♥ 즐겨찾기</button>
@@ -509,6 +546,7 @@
 </header>
 
 <main>
+  <div id="projectBar"></div>
   <div id="grid"></div>
   <div id="empty">이미지가 없습니다.</div>
 
@@ -672,6 +710,11 @@ let SHUFFLED = [];
 let TAGS = {};
 let FAVS = new Set();
 let COLLECTIONS = {};
+
+let PROJECTS = [];
+let projectsLoaded = false;
+let projectMode = false;
+let activeProject = null;
 
 let activeCat = "all";
 let searchTerm = "";
@@ -1003,6 +1046,7 @@ tagModal.addEventListener("click", e => { if (e.target === tagModal) tagModal.cl
 
 // ── Render ────────────────────────────────────────────────────────────────────
 function render() {
+  if (projectMode) return;
   const q = searchTerm.toLowerCase();
 
   visibleImages = SHUFFLED.filter(img => {
@@ -1081,6 +1125,7 @@ function render() {
   });
 
   countEl.textContent = `${visibleImages.length}장`;
+  emptyEl.textContent = "이미지가 없습니다.";
   emptyEl.style.display = visibleImages.length === 0 ? "block" : "none";
 
   grid.style.opacity = '1';
@@ -1090,12 +1135,116 @@ function render() {
 document.getElementById("catTabs").addEventListener("click", e => {
   const btn = e.target.closest(".cat-tab");
   if (!btn) return;
+
+  if (btn.dataset.cat === "__projects__") {
+    document.querySelectorAll(".cat-tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    enterProjectMode();
+    return;
+  }
+
+  if (projectMode) {
+    projectMode = false;
+    activeProject = null;
+    grid.classList.remove("project-list-mode");
+    document.getElementById("projectBar").innerHTML = "";
+    document.body.classList.remove("project-mode");
+  }
   document.querySelectorAll(".cat-tab").forEach(b => b.classList.remove("active"));
   btn.classList.add("active");
   activeCat = btn.dataset.cat;
   render();
   if (tagSearchOpen) updateTagSearchRow();
 });
+
+// ── Projects view ─────────────────────────────────────────────────────────────
+async function fetchProjects() {
+  try {
+    const res = await fetch("projects.json");
+    if (!res.ok) return [];
+    return res.json();
+  } catch { return []; }
+}
+
+async function enterProjectMode() {
+  projectMode = true;
+  activeProject = null;
+  document.body.classList.add("project-mode");
+  if (tagMode) { tagMode = false; tagModeBtn.classList.remove("active"); document.body.classList.remove("tag-mode"); }
+  if (selectMode) { selectMode = false; selModeBtn.classList.remove("active"); document.body.classList.remove("select-mode"); clearSelection(); }
+  if (tagSearchOpen) { tagSearchOpen = false; tagSearchRow.classList.remove("open"); tagSearchBtn.classList.remove("active"); }
+  if (!projectsLoaded) {
+    countEl.textContent = "로딩 중…";
+    PROJECTS = await fetchProjects();
+    projectsLoaded = true;
+  }
+  renderProjects();
+}
+
+function renderProjects() {
+  grid.style.opacity = "1";
+  grid.innerHTML = "";
+  const bar = document.getElementById("projectBar");
+  bar.innerHTML = "";
+
+  if (!activeProject) {
+    grid.classList.add("project-list-mode");
+    countEl.textContent = `${PROJECTS.length}개 프로젝트`;
+    emptyEl.textContent = "프로젝트가 없습니다. 드라이브 Projects 폴더에 프로젝트 폴더를 만들어주세요.";
+    emptyEl.style.display = PROJECTS.length === 0 ? "block" : "none";
+
+    PROJECTS.forEach(p => {
+      const card = document.createElement("div");
+      card.className = "project-card";
+      const cover = (p.images || [])[0];
+      const img = document.createElement("img");
+      if (cover) img.src = thumbUrl(cover.id);
+      img.loading = "lazy";
+      card.appendChild(img);
+      const label = document.createElement("div");
+      label.className = "project-label";
+      label.appendChild(document.createTextNode(p.name));
+      const cnt = document.createElement("span");
+      cnt.className = "project-count";
+      cnt.textContent = `${(p.images || []).length}장`;
+      label.appendChild(cnt);
+      card.appendChild(label);
+      card.onclick = () => { activeProject = p.name; renderProjects(); };
+      grid.appendChild(card);
+    });
+    return;
+  }
+
+  grid.classList.remove("project-list-mode");
+  const proj = PROJECTS.find(p => p.name === activeProject);
+  const imgs = (proj && proj.images) || [];
+  visibleImages = imgs.map(i => ({ id: i.id, name: i.name, cat: "Project", sub: activeProject }));
+  emptyEl.textContent = "이미지가 없습니다.";
+  emptyEl.style.display = imgs.length === 0 ? "block" : "none";
+  countEl.textContent = `${activeProject} — ${imgs.length}장`;
+
+  const back = document.createElement("button");
+  back.className = "project-back";
+  back.textContent = "← Projects";
+  back.onclick = () => { activeProject = null; renderProjects(); };
+  bar.appendChild(back);
+  const title = document.createElement("span");
+  title.className = "project-title";
+  title.textContent = activeProject;
+  bar.appendChild(title);
+
+  visibleImages.forEach((img, idx) => {
+    const card = document.createElement("div");
+    card.className = "img-card";
+    const el = document.createElement("img");
+    el.src = thumbUrl(img.id);
+    el.alt = img.name;
+    el.loading = "lazy";
+    card.appendChild(el);
+    card.onclick = () => openLightbox(idx);
+    grid.appendChild(card);
+  });
+}
 
 // ── Shuffle ───────────────────────────────────────────────────────────────────
 document.getElementById("shuffleBtn").onclick = () => {
