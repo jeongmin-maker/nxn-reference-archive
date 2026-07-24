@@ -632,6 +632,15 @@ function thumbUrl(id) { return `https://drive.google.com/thumbnail?id=${id}&sz=w
 function fullUrl(id)  { return `https://drive.google.com/thumbnail?id=${id}&sz=w1600`; }
 function dlUrl(id)    { return `https://drive.google.com/uc?id=${id}&export=download`; }
 
+// 구글 드라이브 썸네일이 일시적으로 막히면(throttle) 잠시 뒤 자동 재시도
+function loadThumb(el, id, attempt = 0) {
+  el.onerror = () => {
+    if (attempt >= 5) { el.onerror = null; return; }
+    setTimeout(() => loadThumb(el, id, attempt + 1), 800 * (attempt + 1));
+  };
+  el.src = thumbUrl(id) + (attempt ? `&r=${attempt}` : '');
+}
+
 // ── Firebase ──────────────────────────────────────────────────────────────────
 async function loadTags() {
   const snap = await db.collection('tags').get();
@@ -1105,9 +1114,9 @@ function render() {
     pathToCard.set(img.id, card);
 
     const el = document.createElement("img");
-    el.src = thumbUrl(img.id);
     el.alt = img.name;
     el.loading = "lazy";
+    loadThumb(el, img.id);
     card.appendChild(el);
 
     const favBtn = document.createElement("button");
@@ -1233,8 +1242,8 @@ function renderProjects() {
       card.className = "project-card";
       const cover = (p.images || [])[0];
       const img = document.createElement("img");
-      if (cover) img.src = thumbUrl(cover.id);
       img.loading = "lazy";
+      if (cover) loadThumb(img, cover.id);
       card.appendChild(img);
       const label = document.createElement("div");
       label.className = "project-label";
@@ -1272,9 +1281,9 @@ function renderProjects() {
     const card = document.createElement("div");
     card.className = "img-card";
     const el = document.createElement("img");
-    el.src = thumbUrl(img.id);
     el.alt = img.name;
     el.loading = "lazy";
+    loadThumb(el, img.id);
     card.appendChild(el);
     card.onclick = () => openLightbox(idx);
     grid.appendChild(card);
